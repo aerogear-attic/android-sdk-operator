@@ -5,9 +5,9 @@ import (
 )
 
 const (
-	Done = 0
-	Sync = 1
-	Install = 2
+	Done = "Done"
+	Sync = "Sync"
+	Install = "Install"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -32,5 +32,5 @@ type AndroidSDKSpec struct {
 }
 
 type AndroidSDKStatus struct {
-	Status int
+	Status string
 }
