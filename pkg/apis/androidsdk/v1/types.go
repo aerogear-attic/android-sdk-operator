@@ -4,6 +4,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	Done = 0
+	Sync = 1
+	Install = 2
+)
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type AndroidSDKList struct {
@@ -26,5 +32,5 @@ type AndroidSDKSpec struct {
 }
 
 type AndroidSDKStatus struct {
-	// Fill me
+	Status int
 }

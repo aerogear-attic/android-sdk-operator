@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	//"github.com/aerogear/android-sdk-operator/pkg/apis/androidsdk/v1"
+	"github.com/aerogear/android-sdk-operator/pkg/apis/androidsdk/v1"
 
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 	"github.com/sirupsen/logrus"
@@ -13,8 +13,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	//"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
-	"fmt"
-	"strings"
+	//"fmt"
+	//"strings"
 )
 
 func NewHandler(k8c kubernetes.Interface) sdk.Handler {
@@ -44,18 +44,16 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 			return cfgStrErr
 		}
 
-		if !h.hasConfigChanged(cfgStr) {
-			logrus.Info("Config string did not change.")
-			return nil
+		resource := h.updateSdkResource(cfgStr)
+		resourceErr := sdk.Create(resource)
+		if resourceErr != nil && kerrors.IsAlreadyExists(resourceErr) {
+			logrus.Infof("AndroidSDK resource is already created.")
+			return resourceErr
 		}
-
-		logrus.Infof("Config string has changed, updating package cfg definition...")
-		h.updateConfig(cfgStr)
-		logrus.Infof("Package definition changed")
 
 		//TODO: need to persist status for pod execution
 
-		cmd := []string{"/opt/tools/write-to-file.sh", fmt.Sprintf("'%s'", strings.Replace(cfgStr, "\n", "\\n", -1)), "/opt/android-sdk-linux/sdk.cfg"}
+		/*cmd := []string{"/opt/tools/write-to-file.sh", fmt.Sprintf("'%s'", strings.Replace(cfgStr, "\n", "\\n", -1)), "/opt/android-sdk-linux/sdk.cfg"}
 		updatePod := runSdkPod(h, cmd, "android-sdk-config-update")
 		updatePodErr := sdk.Create(updatePod)
 		if updatePodErr != nil {
@@ -66,7 +64,8 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 		installPodErr := sdk.Create(installPod)
 		if installPodErr != nil {
 			return installPodErr
-		}
+		}*/
+
 	}
 	return nil
 }
@@ -96,6 +95,27 @@ func getConfigData(configMap *corev1.ConfigMap) (string, error) {
 
 	return data, nil
 }
+
+func (h *Handler) updateSdkResource(cfg string) *v1.AndroidSDK {
+	androidSdk := &v1.AndroidSDK {
+		TypeMeta: metav1.TypeMeta {
+			Kind:       "AndroidSDK",
+			APIVersion: "androidsdk.aerogear.org/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta {
+			Name:      "android-sdk-config-object",
+			Namespace: "android",
+		},
+		Spec: v1.AndroidSDKSpec{
+			Data: cfg,
+		},
+		Status:v1.AndroidSDKStatus{
+			Status: v1.Done,
+		},
+	}
+	return androidSdk
+}
+
 
 func runSdkPod(h *Handler, cmd []string, name string) *corev1.Pod {
 	pod := &corev1.Pod {
@@ -132,21 +152,9 @@ func runSdkPod(h *Handler, cmd []string, name string) *corev1.Pod {
 					},
 				},
 			},
-			RestartPolicy: "Never",
+			RestartPolicy: corev1.RestartPolicyNever,
 		},
 	}
 
 	return pod
-}
-
-func (h *Handler) hasConfigChanged(cfg string) bool {
-	if len(h.Data) == 0 {
-		return true
-	}
-
-	return h.Data != cfg
-}
-
-func (h *Handler) updateConfig(cfg string) {
-	h.Data = cfg
 }
