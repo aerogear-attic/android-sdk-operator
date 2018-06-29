@@ -1,0 +1,4 @@
+apiVersion: "androidsdk.aerogear.org/v1"
+kind: "AndroidSDK"
+metadata:
+  name: "example"

@@ -1,0 +1,283 @@
+{
+  "kind": "Template",
+  "apiVersion": "v1",
+  "metadata": {
+    "name": "android-sdk-persistent",
+    "creationTimestamp": null,
+    "annotations": {
+      "openshift.io/display-name": "Android SDK (Persistent)",
+      "description": "Android SDK container",
+      "iconClass": "icon-jenkins",
+      "tags": "android-sdk"
+    }
+  },
+  "message": "Android SDK persistent volume",
+  "objects": [
+    {
+      "kind": "PersistentVolumeClaim",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "${ANDROID_SDK_SERVICE_NAME}"
+      },
+      "spec": {
+        "accessModes": [
+          "ReadWriteOnce"
+        ],
+        "resources": {
+          "requests": {
+            "storage": "${ANDROID_SDK_VOLUME_CAPACITY}"
+          }
+        }
+      }
+    },
+    {
+      "kind": "DeploymentConfig",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "${ANDROID_SDK_SERVICE_NAME}",
+        "creationTimestamp": null
+      },
+      "spec": {
+        "strategy": {
+          "type": "Recreate"
+        },
+        "triggers": [
+          {
+            "type": "ConfigChange"
+          }
+        ],
+        "replicas": 1,
+        "selector": {
+          "name": "${ANDROID_SDK_SERVICE_NAME}"
+        },
+        "template": {
+          "metadata": {
+            "creationTimestamp": null,
+            "labels": {
+              "name": "${ANDROID_SDK_SERVICE_NAME}"
+            }
+          },
+          "spec": {
+            "serviceAccountName": "${ANDROID_SDK_SERVICE_NAME}",
+            "containers": [
+              {
+                "name": "android-sdk",
+                "image": "${ANDROID_SDK_IMAGE}",
+                "readinessProbe": {
+                  "timeoutSeconds": 3,
+                  "initialDelaySeconds": 3,
+                  "exec": {
+                    "command": [
+                      "which",
+                      "androidctl"
+                    ]
+                  }
+                },
+                "livenessProbe": {
+                  "timeoutSeconds": 3,
+                  "initialDelaySeconds": 120,
+                  "exec": {
+                    "command": [
+                      "which",
+                      "androidctl"
+                    ]
+                  }
+                },
+                "env": [
+                  {
+                    "name": "ANDROID_HOME",
+                    "value": "${ANDROID_SDK_HOME}"
+                  },
+                  {
+                    "name": "JAVA_HOME",
+                    "value": "${JVM_HOME}"
+                  },
+                  {
+                    "name": "HTTPS_PROXY",
+                    "valueFrom": {
+                      "configMapKeyRef": {
+                        "name": "android-proxy",
+                        "key": "https-proxy"
+                      }
+                    }
+                  },
+                  {
+                    "name": "HTTP_PROXY",
+                    "valueFrom": {
+                      "configMapKeyRef": {
+                        "name": "android-proxy",
+                        "key": "http-proxy"
+                      }
+                    }
+                  },
+                  {
+                    "name": "GRADLE_OPTS",
+                    "valueFrom": {
+                      "configMapKeyRef": {
+                        "name": "android-proxy",
+                        "key": "gradle-opts"
+                      }
+                    }
+                  }
+                ],
+                "resources": {
+                "limits": {
+                  "memory": "${MEMORY_LIMIT}",
+                  "cpu": "${CPU_LIMIT}"
+                },
+                "requests": {
+                  "memory": "${MEMORY_REQUESTS}",
+                  "cpu": "${CPU_REQUESTS}"
+                }
+                },
+                "volumeMounts": [
+                  {
+                    "name": "${ANDROID_SDK_SERVICE_NAME}'",
+                    "mountPath": "/opt/android-sdk-linux"
+                  }
+                ],
+                "terminationMessagePath": "/dev/termination-log",
+                "imagePullPolicy": "IfNotPresent",
+                "capabilities": {},
+                "securityContext": {
+                  "capabilities": {},
+                  "privileged": false
+                }
+              }
+            ],
+            "volumes": [
+              {
+                "name": "${ANDROID_SDK_SERVICE_NAME}-data",
+                "persistentVolumeClaim": {
+                  "claimName": "${ANDROID_SDK_SERVICE_NAME}"
+                }
+              },
+              {
+                "name": "android-proxy",
+                "configMap": {
+                  "name":"android-proxy"
+                }
+              }
+            ],
+            "restartPolicy": "Always",
+            "dnsPolicy": "ClusterFirst"
+          }
+        }
+      }
+    },
+    {
+      "kind": "ServiceAccount",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "${ANDROID_SDK_SERVICE_NAME}"
+      }
+    },
+    {
+      "kind": "RoleBinding",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "${ANDROID_SDK_SERVICE_NAME}_edit"
+      },
+      "groupNames": null,
+      "subjects": [
+        {
+          "kind": "ServiceAccount",
+          "name": "${ANDROID_SDK_SERVICE_NAME}"
+        }
+      ],
+      "roleRef": {
+        "name": "edit"
+      }
+    },
+    {
+      "kind": "ConfigMap",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "android-proxy"
+      },
+      "data": {
+        "https-proxy" : "${HTTPS_PROXY}",
+        "http-proxy": "${HTTP_PROXY}",
+        "gradle-opts": "${GRADLE_OPTS}"
+      }
+    }
+  ],
+  "parameters": [
+    {
+      "name": "ANDROID_SDK_SERVICE_NAME",
+      "displayName": "Android SDK",
+      "description": "The name of the android sdk container",
+      "value": "android-sdk"
+    },
+    {
+      "name": "MEMORY_LIMIT",
+      "displayName": "Memory Limit",
+      "description": "Maximum amount of memory the container can use.",
+      "value": "1Gi"
+    },
+    {
+      "name": "CPU_LIMIT",
+      "displayName": "CPU Limit",
+      "description": "Maximum amount of CPU the container can use.",
+      "value": "800m"
+    },
+    {
+      "name": "MEMORY_REQUESTS",
+      "displayName": "Memory Requests",
+      "description": "Min memory that can be requested on a node by a container",
+      "value": "10Mi"
+    },
+    {
+      "name": "CPU_REQUESTS",
+      "displayName": "CPU Requests",
+      "description": "Min CPU that can be requested on a node by a container",
+      "value": "1m"
+    },
+    {
+      "name": "ANDROID_SDK_VOLUME_CAPACITY",
+      "displayName": "Volume Capacity",
+      "description": "Volume space available for data, e.g. 512Mi, 2Gi.",
+      "value": "10Gi",
+      "required": true
+    },
+    {
+      "name": "ANDROID_SDK_HOME",
+      "displayName": "Androidd SDK home folder",
+      "description": "Android SDK home folder",
+      "value": "/opt/android-sdk-linux"
+    },
+    {
+      "name": "JVM_HOME",
+      "displayName": "Java HOME env var",
+      "description": "Java HOME env var",
+      "value": "/etc/alternatives/java_sdk_1.8.0"
+    },
+    {
+      "name": "ANDROID_SDK_IMAGE",
+      "displayName": "Android SDK docker image reference",
+      "description": "Full name of android sdk image for example ",
+      "value": "docker.io/aerogear/digger-android-sdk-image:latest"
+    },
+    {
+      "name": "HTTPS_PROXY",
+      "displayName": "Outbound proxy if required for https requests",
+      "description": "HTTPS Proxy address, examples http://user:pass@10.10.10.10:8888, http://10.10.10.01:8888",
+      "value": ""
+    },
+    {
+      "name": "HTTP_PROXY",
+      "displayName": "Outbound proxy if required for http requests",
+      "description": "HTTP Proxy address, examples http://user:pass@10.10.10.10:8888, http://10.10.10.01:8888",
+      "value": ""
+    },
+    {
+      "name": "GRADLE_OPTS",
+      "displayName": "",
+      "description": "example -Dhttp.proxyHost=10.10.10.01 -Dhttp.proxyPort=8888 -Dhttps.proxyHost=10.10.10.01 -Dhttps.proxyPort=8888 ",
+      "value": ""
+    }
+  ],
+  "labels": {
+    "template": "android-sdk-persistent-template"
+  }
+}

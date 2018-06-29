@@ -1,0 +1,3 @@
+apiVersion: androidsdk.aerogear.org/v1
+kind: AndroidSDK
+projectName: android-sdk-operator
