@@ -31,7 +31,6 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 	case *corev1.ConfigMap:
 		isValid := v1.IsValidSdkConfig(o)
 		if !isValid {
-			logrus.Infof("ConfigMap %s is not a valid android-sdk-config object", o.Name)
 			return nil
 		}
 
@@ -46,16 +45,36 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 			logrus.Infof("AndroidSDK resource is already created.")
 		}
 
-		//TODO: need to persist status for pod execution
+		//TODO: there is probably a better way to delete the pod
+		runningPod, err := h.getPod("android-sdk-pkg-update")
+		if err == nil {
+			if runningPod.Status.Phase == "Succeeded" {
+				logrus.Infof("Android SDK Pod finished running, starting its removal.")
+				delErr := sdk.Delete(getSdkPod(h, []string{""}, "android-sdk-pkg-update"), sdk.WithDeleteOptions(&metav1.DeleteOptions{}))
+				if delErr != nil {
+					logrus.Infof("Error while deleting pod %s.", runningPod.Name)
+					return delErr
+				}
+				return nil
+			}
+			return nil
+		}
 
-		installPod := runSdkPod(h, []string{"/opt/tools/androidctl-sync", "-y", "/tmp/android-sdk-config/packages"}, "android-sdk-pkg-update")
+		//TODO: persist config status in AndroidSDK CRD
+		//TODO: Maybe we should store a hash string based on the config map content and only run the update if the hash is not a match
+		installPod := getSdkPod(h, []string{"/opt/tools/androidctl-sync", "-y", "/tmp/android-sdk-config/packages"}, "android-sdk-pkg-update")
 		installPodErr := sdk.Create(installPod)
 		if installPodErr != nil {
 			return installPodErr
 		}
-
 	}
 	return nil
+}
+
+func (h *Handler) getPod(name string) (*corev1.Pod, error) {
+	pods := h.k8c.CoreV1().Pods("android")
+
+	return pods.Get(name, metav1.GetOptions{})
 }
 
 func (h *Handler) updateSdkResource(cfg string) *v1.AndroidSDK {
@@ -79,7 +98,7 @@ func (h *Handler) updateSdkResource(cfg string) *v1.AndroidSDK {
 }
 
 
-func runSdkPod(h *Handler, cmd []string, name string) *corev1.Pod {
+func getSdkPod(h *Handler, cmd []string, name string) *corev1.Pod {
 	pod := &corev1.Pod {
 		TypeMeta: metav1.TypeMeta {
 			Kind:       "Pod",
