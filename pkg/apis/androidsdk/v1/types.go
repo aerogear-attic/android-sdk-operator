@@ -8,6 +8,7 @@ const (
 	Done = "Done"
 	Sync = "Sync"
 	Install = "Install"
+
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
