@@ -44,32 +44,25 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 		}
 
 		// Create the custom resource if it doesn't already exist
-		resource := h.updateSdkResource(config, ns)
+		resource := updateSdkResource(config, ns)
 		err = sdk.Create(resource)
 		if err != nil && !kerrors.IsAlreadyExists(err) {
 			return fmt.Errorf("failed to create sdk resource: %v", err)
 		}
 
-		//TODO: there is probably a better way to delete the pod
-		runningPod, err := h.getPod("android-sdk-pkg-update", ns)
-		if err == nil {
-			if runningPod.Status.Phase == "Succeeded" {
-				logrus.Infof("Android SDK Pod finished running, starting its removal.")
-
-				err = sdk.Delete(getSdkPod(h, []string{""}, "android-sdk-pkg-update", ns), sdk.WithDeleteOptions(&metav1.DeleteOptions{}))
-				if err != nil {
-					logrus.Infof("Error while deleting pod %s.", runningPod.Name)
-					return err
-				}
-				return nil
-			}
-			return nil
+		// TODO: there is probably a better way to delete the pod
+		// Cleans up the completed pod
+		name := "android-sdk-pkg-update"
+		err = h.cleanUp(name, ns)
+		if err != nil {
+			return fmt.Errorf("failed to clean up installer pod: %v", err)
 		}
 
-		//TODO: persist config status in AndroidSDK CRD
-		//TODO: Maybe we should store a hash string based on the config map content and only run the update if the hash is not a match
-		installPod := getSdkPod(h, []string{"/opt/tools/androidctl-sync", "-y", "/tmp/android-sdk-config/packages"}, "android-sdk-pkg-update", ns)
-		err = sdk.Create(installPod)
+		// TODO: persist config status in AndroidSDK CRD
+		// TODO: Maybe we should store a hash string based on the config map content and only run the update if the hash is not a match
+		cmd := []string{"/opt/tools/androidctl-sync", "-y", "/tmp/android-sdk-config/packages"}
+		pod := getSdkPod(cmd, name, ns)
+		err = sdk.Create(pod)
 		if err != nil {
 			return fmt.Errorf("failed to create sdk installer pod: %v", err)
 		}
@@ -82,7 +75,25 @@ func (h *Handler) getPod(name string, ns string) (*corev1.Pod, error) {
 	return pods.Get(name, metav1.GetOptions{})
 }
 
-func (h *Handler) updateSdkResource(cfg string, ns string) *v1.AndroidSDK {
+func (h *Handler) cleanUp(name string, ns string) error {
+	pod, err := h.getPod(name, ns)
+	if err == nil {
+		if pod.Status.Phase == "Succeeded" {
+			logrus.Infof("Android SDK Pod finished running, starting its removal.")
+
+			err = sdk.Delete(getSdkPod([]string{""}, name, ns), sdk.WithDeleteOptions(&metav1.DeleteOptions{}))
+			if err != nil {
+				logrus.Infof("Error while deleting pod %s.", pod.Name)
+				return err
+			}
+			return nil
+		}
+		return nil
+	}
+	return err
+}
+
+func updateSdkResource(cfg string, ns string) *v1.AndroidSDK {
 	androidSdk := &v1.AndroidSDK{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "AndroidSDK",
@@ -103,7 +114,7 @@ func (h *Handler) updateSdkResource(cfg string, ns string) *v1.AndroidSDK {
 	return androidSdk
 }
 
-func getSdkPod(h *Handler, cmd []string, name string, ns string) *corev1.Pod {
+func getSdkPod(cmd []string, name string, ns string) *corev1.Pod {
 	pod := &corev1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
