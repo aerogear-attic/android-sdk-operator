@@ -4,13 +4,13 @@ import (
 	"context"
 	"runtime"
 
-	configHandler "github.com/aerogear/android-sdk-operator/pkg/config"
+	configHandler "github.com/aerogear/android-sdk-operator-poc/pkg/config"
 	sdk "github.com/operator-framework/operator-sdk/pkg/sdk"
 	k8sutil "github.com/operator-framework/operator-sdk/pkg/util/k8sutil"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
 
-	"github.com/sirupsen/logrus"
 	"github.com/operator-framework/operator-sdk/pkg/k8sclient"
+	"github.com/sirupsen/logrus"
 )
 
 func printVersion() {

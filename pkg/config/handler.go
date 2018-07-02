@@ -2,8 +2,9 @@ package config
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/aerogear/android-sdk-operator/pkg/apis/androidsdk/v1"
+	"github.com/aerogear/android-sdk-operator-poc/pkg/apis/androidsdk/v1"
 
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 	"github.com/sirupsen/logrus"
@@ -14,13 +15,13 @@ import (
 )
 
 func NewHandler(k8c kubernetes.Interface) sdk.Handler {
-	return &Handler {
-		k8c:k8c,
+	return &Handler{
+		k8c: k8c,
 	}
 }
 
 type Handler struct {
-	k8c kubernetes.Interface
+	k8c  kubernetes.Interface
 	Data string
 }
 
@@ -29,31 +30,36 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 
 	switch o := event.Object.(type) {
 	case *corev1.ConfigMap:
+		ns := o.Namespace
+
+		// Ignore invalid config maps
 		isValid := v1.IsValidSdkConfig(o)
 		if !isValid {
 			return nil
 		}
 
-		cfgStr, cfgStrErr := v1.GetConfigData(o)
-		if cfgStrErr != nil {
-			return cfgStrErr
+		config, err := v1.GetConfigData(o)
+		if err != nil {
+			return fmt.Errorf("failed to get config: %v", err)
 		}
 
-		resource := h.updateSdkResource(cfgStr)
-		resourceErr := sdk.Create(resource)
-		if resourceErr != nil && kerrors.IsAlreadyExists(resourceErr) {
-			logrus.Infof("AndroidSDK resource is already created.")
+		// Create the custom resource if it doesn't already exist
+		resource := h.updateSdkResource(config, ns)
+		err = sdk.Create(resource)
+		if err != nil && !kerrors.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create sdk resource: %v", err)
 		}
 
 		//TODO: there is probably a better way to delete the pod
-		runningPod, err := h.getPod("android-sdk-pkg-update")
+		runningPod, err := h.getPod("android-sdk-pkg-update", ns)
 		if err == nil {
 			if runningPod.Status.Phase == "Succeeded" {
 				logrus.Infof("Android SDK Pod finished running, starting its removal.")
-				delErr := sdk.Delete(getSdkPod(h, []string{""}, "android-sdk-pkg-update"), sdk.WithDeleteOptions(&metav1.DeleteOptions{}))
-				if delErr != nil {
+
+				err = sdk.Delete(getSdkPod(h, []string{""}, "android-sdk-pkg-update", ns), sdk.WithDeleteOptions(&metav1.DeleteOptions{}))
+				if err != nil {
 					logrus.Infof("Error while deleting pod %s.", runningPod.Name)
-					return delErr
+					return err
 				}
 				return nil
 			}
@@ -62,85 +68,84 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 
 		//TODO: persist config status in AndroidSDK CRD
 		//TODO: Maybe we should store a hash string based on the config map content and only run the update if the hash is not a match
-		installPod := getSdkPod(h, []string{"/opt/tools/androidctl-sync", "-y", "/tmp/android-sdk-config/packages"}, "android-sdk-pkg-update")
-		installPodErr := sdk.Create(installPod)
-		if installPodErr != nil {
-			return installPodErr
+		installPod := getSdkPod(h, []string{"/opt/tools/androidctl-sync", "-y", "/tmp/android-sdk-config/packages"}, "android-sdk-pkg-update", ns)
+		err = sdk.Create(installPod)
+		if err != nil {
+			return fmt.Errorf("failed to create sdk installer pod: %v", err)
 		}
 	}
 	return nil
 }
 
-func (h *Handler) getPod(name string) (*corev1.Pod, error) {
-	pods := h.k8c.CoreV1().Pods("android")
-
+func (h *Handler) getPod(name string, ns string) (*corev1.Pod, error) {
+	pods := h.k8c.CoreV1().Pods(ns)
 	return pods.Get(name, metav1.GetOptions{})
 }
 
-func (h *Handler) updateSdkResource(cfg string) *v1.AndroidSDK {
-	androidSdk := &v1.AndroidSDK {
-		TypeMeta: metav1.TypeMeta {
+func (h *Handler) updateSdkResource(cfg string, ns string) *v1.AndroidSDK {
+	androidSdk := &v1.AndroidSDK{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "AndroidSDK",
 			APIVersion: "androidsdk.aerogear.org/v1",
 		},
-		ObjectMeta: metav1.ObjectMeta {
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      "android-sdk-config-object",
-			Namespace: "android",
+			Namespace: ns,
 		},
 		Spec: v1.AndroidSDKSpec{
 			Data: cfg,
 		},
-		Status:v1.AndroidSDKStatus{
+		Status: v1.AndroidSDKStatus{
 			Status: v1.Done,
 		},
 	}
+
 	return androidSdk
 }
 
-
-func getSdkPod(h *Handler, cmd []string, name string) *corev1.Pod {
-	pod := &corev1.Pod {
-		TypeMeta: metav1.TypeMeta {
+func getSdkPod(h *Handler, cmd []string, name string, ns string) *corev1.Pod {
+	pod := &corev1.Pod{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
-		ObjectMeta: metav1.ObjectMeta {
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: "android",
+			Namespace: ns,
 		},
-		Spec: corev1.PodSpec {
-			Containers: []corev1.Container {
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
 				{
-					Name: "android-sdk-pkg",
-					Image: "docker.io/aerogear/digger-android-sdk-image:dev",
+					Name:    "android-sdk-pkg",
+					Image:   "docker.io/aerogear/digger-android-sdk-image:1.0.0-alpha",
 					Command: cmd,
-					VolumeMounts: []corev1.VolumeMount {
+					VolumeMounts: []corev1.VolumeMount{
 						{
-							Name: "android-sdk",
+							Name:      "android-sdk",
 							MountPath: "/opt/android-sdk-linux",
 						},
 						{
-							Name: "android-sdk-config",
+							Name:      "android-sdk-config",
 							MountPath: "/tmp/android-sdk-config",
 						},
 					},
 				},
 			},
-			Volumes:[]corev1.Volume{
+			Volumes: []corev1.Volume{
 				{
-					Name:"android-sdk",
-					VolumeSource: corev1.VolumeSource {
+					Name: "android-sdk",
+					VolumeSource: corev1.VolumeSource{
 						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 							ClaimName: "android-sdk",
-							ReadOnly: false,
+							ReadOnly:  false,
 						},
 					},
 				},
 				{
 					Name: "android-sdk-config",
-					VolumeSource: corev1.VolumeSource {
-						ConfigMap:&corev1.ConfigMapVolumeSource {
-							LocalObjectReference: corev1.LocalObjectReference {
+					VolumeSource: corev1.VolumeSource{
+						ConfigMap: &corev1.ConfigMapVolumeSource{
+							LocalObjectReference: corev1.LocalObjectReference{
 								Name: "android-sdk-config",
 							},
 						},
