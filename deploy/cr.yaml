@@ -2,3 +2,7 @@ apiVersion: "androidsdk.aerogear.org/v1"
 kind: "AndroidSDK"
 metadata:
   name: "android-sdk-pkg-config"
+spec:
+  ConfigRef: android-sdk-config
+status: 
+  Status: Install

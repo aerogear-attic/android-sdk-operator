@@ -2,16 +2,20 @@ package config
 
 import (
 	"context"
+	b64 "encoding/base64"
 	"fmt"
 
 	"github.com/aerogear/android-sdk-operator-poc/pkg/apis/androidsdk/v1"
+	sdk "github.com/operator-framework/operator-sdk/pkg/sdk"
 
-	"github.com/operator-framework/operator-sdk/pkg/sdk"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+)
+
+var (
+	configHash = ""
 )
 
 func NewHandler(k8c kubernetes.Interface) sdk.Handler {
@@ -29,42 +33,127 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 	logrus.Infof("Handler is being called")
 
 	switch o := event.Object.(type) {
-	case *corev1.ConfigMap:
+	case *v1.AndroidSDK:
 		ns := o.Namespace
 
-		// Ignore invalid config maps
-		isValid := v1.IsValidSdkConfig(o)
-		if !isValid {
-			return nil
+		if o.Status.Status == v1.Install {
+			o.Status.Status = v1.Installing
+			err := sdk.Update(o)
+			if err != nil {
+				return fmt.Errorf("failed to update android sdk resource status: %v", err)
+			}
+
+			// Initialise the configmap hash to the b64 encoded value
+			// of the configmap's data
+			hash, err := h.getHash(o.Spec.ConfigRef, ns)
+			if err != nil {
+				return fmt.Errorf("unable to update hash for configmap data: %v", err)
+			}
+			configHash = hash
+
+			// Install the sdk
+			name := "android-sdk-pkg-install"
+			cmd := []string{"androidctl", "sdk", "install"}
+			pod := getSdkPod(cmd, name, o.Spec.ConfigRef, ns)
+
+			err = sdk.Create(pod)
+			if err != nil {
+				return fmt.Errorf("failed to create sdk installer pod: %v", err)
+			}
 		}
 
-		config, err := v1.GetConfigData(o)
-		if err != nil {
-			return fmt.Errorf("failed to get config: %v", err)
+		if o.Status.Status == v1.Sync {
+			o.Status.Status = v1.Syncing
+			err := sdk.Update(o)
+			if err != nil {
+				return fmt.Errorf("failed to update android sdk resource status: %v", err)
+			}
+
+			// Update the packages based on the new configmap
+			name := "android-sdk-pkg-update"
+			cmd := []string{"/opt/tools/androidctl-sync", "-y", "/tmp/android-sdk-config/packages"}
+			pod := getSdkPod(cmd, name, o.Spec.ConfigRef, ns)
+			err = sdk.Create(pod)
+			if err != nil {
+				return fmt.Errorf("failed to create sdk installer pod: %v", err)
+			}
+
+			// Update the configmap hash
+			hash, err := h.getHash(o.Spec.ConfigRef, ns)
+			if err != nil {
+				return fmt.Errorf("unable to update hash for configmap data: %v", err)
+			}
+			configHash = hash
 		}
 
-		// Create the custom resource if it doesn't already exist
-		resource := updateSdkResource(config, ns)
-		err = sdk.Create(resource)
-		if err != nil && !kerrors.IsAlreadyExists(err) {
-			return fmt.Errorf("failed to create sdk resource: %v", err)
+		if o.Status.Status == v1.Done {
+			// Verify if the global hash and the current hash are the same
+			hash, err := h.getHash(o.Spec.ConfigRef, ns)
+			if err != nil {
+				return fmt.Errorf("unable to get hash for configmap data: %v", err)
+			}
+
+			// Set status to sync if a change is detected
+			if hash != configHash {
+				logrus.Info("Change in configmap detected")
+
+				o.Status.Status = v1.Sync
+				err = sdk.Update(o)
+				if err != nil {
+					return fmt.Errorf("failed to update android sdk resource status: %v", err)
+				}
+			}
 		}
 
-		// TODO: there is probably a better way to delete the pod
-		// Cleans up the completed pod
-		name := "android-sdk-pkg-update"
-		err = h.cleanUp(name, ns)
-		if err != nil {
-			return fmt.Errorf("failed to clean up installer pod: %v", err)
+		if o.Status.Status == v1.Syncing {
+			name := "android-sdk-pkg-update"
+			pod, err := h.getPod(name, ns)
+			if err != nil {
+				return err
+			}
+
+			// Delete sdk updater pod if completed
+			// TODO better/cleaner way to do this?
+			if pod.Status.Phase == "Succeeded" {
+				logrus.Infof("updater pod finished running, starting its removal..")
+
+				err := sdk.Delete(getSdkPod([]string{""}, name, o.Spec.ConfigRef, ns), sdk.WithDeleteOptions(&metav1.DeleteOptions{}))
+				if err != nil {
+					return fmt.Errorf("error while deleting pod: %v", err)
+				}
+
+				// Set status to 'done'
+				o.Status.Status = v1.Done
+				err = sdk.Update(o)
+				if err != nil {
+					return fmt.Errorf("failed to update android sdk resource status: %v", err)
+				}
+			}
 		}
 
-		// TODO: persist config status in AndroidSDK CRD
-		// TODO: Maybe we should store a hash string based on the config map content and only run the update if the hash is not a match
-		cmd := []string{"/opt/tools/androidctl-sync", "-y", "/tmp/android-sdk-config/packages"}
-		pod := getSdkPod(cmd, name, ns)
-		err = sdk.Create(pod)
-		if err != nil {
-			return fmt.Errorf("failed to create sdk installer pod: %v", err)
+		if o.Status.Status == v1.Installing {
+			name := "android-sdk-pkg-install"
+			pod, err := h.getPod(name, ns)
+			if err != nil {
+				return err
+			}
+
+			// Delete sdk installer pod if completed
+			// TODO better/cleaner way to do this?
+			if pod.Status.Phase == "Succeeded" {
+				logrus.Infof("installer pod finished running, starting its removal..")
+
+				err := sdk.Delete(getSdkPod([]string{""}, name, o.Spec.ConfigRef, ns), sdk.WithDeleteOptions(&metav1.DeleteOptions{}))
+				if err != nil {
+					return fmt.Errorf("error while deleting pod: %v", err)
+				}
+
+				o.Status.Status = v1.Done
+				err = sdk.Update(o)
+				if err != nil {
+					return fmt.Errorf("failed to update android sdk resource status: %v", err)
+				}
+			}
 		}
 	}
 	return nil
@@ -75,22 +164,14 @@ func (h *Handler) getPod(name string, ns string) (*corev1.Pod, error) {
 	return pods.Get(name, metav1.GetOptions{})
 }
 
-func (h *Handler) cleanUp(name string, ns string) error {
-	pod, err := h.getPod(name, ns)
-	if err == nil {
-		if pod.Status.Phase == "Succeeded" {
-			logrus.Infof("Android SDK Pod finished running, starting its removal.")
-
-			err = sdk.Delete(getSdkPod([]string{""}, name, ns), sdk.WithDeleteOptions(&metav1.DeleteOptions{}))
-			if err != nil {
-				logrus.Infof("Error while deleting pod %s.", pod.Name)
-				return err
-			}
-			return nil
-		}
-		return nil
+// getHash gets the hash of the configmap's data
+func (h *Handler) getHash(name string, ns string) (string, error) {
+	configMap, _ := h.k8c.CoreV1().ConfigMaps(ns).Get(name, metav1.GetOptions{})
+	config, err := v1.GetConfigData(configMap)
+	if err != nil {
+		return "", err
 	}
-	return err
+	return b64.StdEncoding.EncodeToString([]byte(config)), nil
 }
 
 func updateSdkResource(cfg string, ns string) *v1.AndroidSDK {
@@ -114,7 +195,7 @@ func updateSdkResource(cfg string, ns string) *v1.AndroidSDK {
 	return androidSdk
 }
 
-func getSdkPod(cmd []string, name string, ns string) *corev1.Pod {
+func getSdkPod(cmd []string, name string, configMap string, ns string) *corev1.Pod {
 	pod := &corev1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
@@ -157,7 +238,7 @@ func getSdkPod(cmd []string, name string, ns string) *corev1.Pod {
 					VolumeSource: corev1.VolumeSource{
 						ConfigMap: &corev1.ConfigMapVolumeSource{
 							LocalObjectReference: corev1.LocalObjectReference{
-								Name: "android-sdk-config",
+								Name: configMap,
 							},
 						},
 					},

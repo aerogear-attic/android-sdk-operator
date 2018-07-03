@@ -22,10 +22,8 @@ func printVersion() {
 func main() {
 	printVersion()
 
-	//resource := "androidsdk.aerogear.org/v1"
-	//kind := "AndroidSDK"
-	resource := "v1"
-	kind := "ConfigMap"
+	resource := "androidsdk.aerogear.org/v1"
+	kind := "AndroidSDK"
 	namespace, err := k8sutil.GetWatchNamespace()
 	if err != nil {
 		logrus.Fatalf("Failed to get watch namespace: %v", err)
