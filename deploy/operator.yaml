@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: android-sdk-operator
-          image: docker.io/dimitraz/android-sdk-operator:0.0.14
+          image: docker.io/dimitraz/android-sdk-operator:0.0.15
           command:
           - android-sdk-operator
           imagePullPolicy: Always

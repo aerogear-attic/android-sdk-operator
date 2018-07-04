@@ -4,7 +4,7 @@ import (
 	"context"
 	"runtime"
 
-	configHandler "github.com/aerogear/android-sdk-operator-poc/pkg/config"
+	configHandler "github.com/aerogear/android-sdk-operator-poc/pkg/androidSdk"
 	sdk "github.com/operator-framework/operator-sdk/pkg/sdk"
 	k8sutil "github.com/operator-framework/operator-sdk/pkg/util/k8sutil"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"

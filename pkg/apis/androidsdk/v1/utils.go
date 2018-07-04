@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	corev1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 func IsValidSdkConfig(configMap *corev1.ConfigMap) bool {
@@ -32,7 +31,7 @@ func GetConfigData(configMap *corev1.ConfigMap) (string, error) {
 	data, ok := configMap.Data["packages"]
 
 	if !ok {
-		return "", kerrors.NewInternalError(errors.New("Configmap \"packages\" key not found."))
+		return "", errors.New("\"packages\" key not found in configmap")
 	}
 
 	return data, nil

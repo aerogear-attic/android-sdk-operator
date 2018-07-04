@@ -30,10 +30,9 @@ type AndroidSDK struct {
 }
 
 type AndroidSDKSpec struct {
-	Data      string
-	ConfigRef string
+	ConfigMapName string
 }
 
 type AndroidSDKStatus struct {
-	Status string
+	Phase string
 }
