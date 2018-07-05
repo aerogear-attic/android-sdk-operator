@@ -28,10 +28,19 @@ func deletePod(h *Handler, helper *api.AndroidSDK, podName string) error {
 			return fmt.Errorf("error while deleting pod: %v", err)
 		}
 
-		helper.Status.Phase = api.Done
-		err = sdk.Update(helper)
-		if err != nil {
-			return fmt.Errorf("error updating resource status: %v", err)
+		if podName == installerPodName {
+			// If the Android SDK has finished installing, start syncing packages
+			helper.Status.Phase = api.Sync
+			err = sdk.Update(helper)
+			if err != nil {
+				return fmt.Errorf("error updating resource status: %v", err)
+			}
+		} else {
+			helper.Status.Phase = api.Done
+			err = sdk.Update(helper)
+			if err != nil {
+				return fmt.Errorf("error updating resource status: %v", err)
+			}
 		}
 	}
 
