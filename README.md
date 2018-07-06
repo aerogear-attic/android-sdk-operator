@@ -19,9 +19,14 @@ The above command will result in a linux container image which can also be pushe
 
 ## Deployment
 
-```
+```sh
 $ kubectl create -f deploy/rbac.yaml
 $ kubectl create -f deploy/crd.yaml
 $ kubectl create -f deploy/operator.yaml
+
+# Create a configmap with desired Android SDK package config
 $ kubectl create -f deploy/android-sdk-config.yaml
+
+# Create the custom resource which will trigger the operator to sync the packages
+$ kubectl create -f deploy/cr.yaml
 ```
