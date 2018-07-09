@@ -30,9 +30,9 @@ type AndroidSDK struct {
 }
 
 type AndroidSDKSpec struct {
-	ConfigMapName string
+	ConfigMapName string `json:"config_map_name"`
 }
 
 type AndroidSDKStatus struct {
-	Phase string
+	Phase string `json:"phase"`
 }

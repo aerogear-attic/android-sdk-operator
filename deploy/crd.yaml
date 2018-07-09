@@ -11,3 +11,14 @@ spec:
     singular: androidsdk
   scope: Namespaced
   version: v1
+  validation:
+    openAPIV3Schema:
+      properties:
+        spec:
+          properties:
+            ConfigMapName:
+              type: string
+        status:
+          properties:
+            Phase:
+              type: string

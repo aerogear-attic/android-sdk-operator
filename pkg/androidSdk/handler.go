@@ -53,6 +53,11 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 		if o.Status.Phase == api.Done {
 			return watchChanges(h, o)
 		}
+
+		if o.Status.Phase == "" {
+			o.Status.Phase = api.Install
+			return sdk.Update(o)
+		}
 	}
 	return nil
 }
