@@ -4,9 +4,9 @@ import (
 	"context"
 	"runtime"
 
-	configHandler "github.com/aerogear/android-sdk-operator-poc/pkg/androidSdk"
-	sdk "github.com/operator-framework/operator-sdk/pkg/sdk"
-	k8sutil "github.com/operator-framework/operator-sdk/pkg/util/k8sutil"
+	configHandler "github.com/aerogear/android-sdk-operator/pkg/androidSdk"
+	"github.com/operator-framework/operator-sdk/pkg/sdk"
+	"github.com/operator-framework/operator-sdk/pkg/util/k8sutil"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
 
 	"github.com/operator-framework/operator-sdk/pkg/k8sclient"
@@ -30,10 +30,14 @@ func main() {
 	}
 
 	client := k8sclient.GetKubeClient()
-
+	kube := configHandler.NewKube(client)
+	sdkHelper := configHandler.DefaultSdkHelper()
+	handler := configHandler.NewHandler(&kube, &sdkHelper)
 	resyncPeriod := 5
+
 	logrus.Infof("Watching %s, %s, %s, %d", resource, kind, namespace, resyncPeriod)
+
 	sdk.Watch(resource, kind, namespace, resyncPeriod)
-	sdk.Handle(configHandler.NewHandler(client))
+	sdk.Handle(handler)
 	sdk.Run(context.TODO())
 }
