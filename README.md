@@ -1,6 +1,6 @@
 # Andrdoid SDK Operator Poc
 
-Android SDK operator poc that watches changes in a configmap object to install/remove Android SDK packages in a Persistent Volume.
+Android SDK operator that watches changes in a configmap object to install/remove Android SDK packages in a Persistent Volume.
 
 |                 | Project Info  |
 | --------------- | ------------- |
@@ -12,21 +12,27 @@ Android SDK operator poc that watches changes in a configmap object to install/r
 
 ```sh
 $ operator-sdk generate k8s
-$ operator-sdk build aerogear/android-sdk-operator:dev
+$ operator-sdk build quay.io/aerogear/android-sdk-operator:dev
 ```
 
-The above command will result in a linux container image which can also be pushed to a container registry.
+The above command will result in a linux container image which can also be pushed to an external container registry.
 
 ## Deployment
 
+Deploying the operator and related resources:
+
 ```sh
-$ kubectl create -f deploy/rbac.yaml
-$ kubectl create -f deploy/crd.yaml
-$ kubectl create -f deploy/operator.yaml
+#Deploy the android-sdk persistent volume
+oc new-app -f extras/android/android-persistent.json
 
-# Create a configmap with desired Android SDK package config
-$ kubectl create -f deploy/android-sdk-config.yaml
+#Deploy a configmap with desired Android SDK package config
+$ oc create -f extras/android/android-sdk-config.yaml
 
-# Create the custom resource which will trigger the operator to sync the packages
-$ kubectl create -f deploy/cr.yaml
+#Deploy the required resource definitions
+$ oc create -f deploy/rbac.yaml
+$ oc create -f deploy/crd.yaml
+$ oc create -f deploy-cr.yaml
+
+#Deploy the operator itself
+$ oc create -f deploy/operator.yaml
 ```

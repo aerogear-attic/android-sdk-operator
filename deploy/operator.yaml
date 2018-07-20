@@ -17,7 +17,7 @@ spec:
           image: docker.io/aerogear/android-sdk-operator:dev
           command:
           - android-sdk-operator
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           env:
             - name: WATCH_NAMESPACE
               valueFrom:

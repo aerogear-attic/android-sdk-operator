@@ -3,4 +3,5 @@ kind: "AndroidSDK"
 metadata:
   name: "android-sdk-pkg-config"
 spec:
-  ConfigMapName: android-sdk-config
+  config_map_name: android-sdk-config
+  
