@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: android-sdk-operator
-          image: docker.io/aerogear/android-sdk-operator:dev2
+          image: docker.io/aerogear/android-sdk-operator:dev
           command:
           - android-sdk-operator
           imagePullPolicy: Always
