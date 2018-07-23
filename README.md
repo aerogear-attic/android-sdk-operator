@@ -1,4 +1,4 @@
-# Andrdoid SDK Operator Poc
+# Andrdoid SDK Operator
 
 Android SDK operator that watches changes in a configmap object to install/remove Android SDK packages in a Persistent Volume.
 
