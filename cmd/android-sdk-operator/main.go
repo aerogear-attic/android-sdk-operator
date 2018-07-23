@@ -4,13 +4,13 @@ import (
 	"context"
 	"runtime"
 
-	stub "github.com/aerogear/android-sdk-operator/pkg/stub"
-	sdk "github.com/operator-framework/operator-sdk/pkg/sdk"
-	k8sutil "github.com/operator-framework/operator-sdk/pkg/util/k8sutil"
+	configHandler "github.com/aerogear/android-sdk-operator/pkg/androidSdk"
+	"github.com/operator-framework/operator-sdk/pkg/sdk"
+	"github.com/operator-framework/operator-sdk/pkg/util/k8sutil"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
 
-	"github.com/sirupsen/logrus"
 	"github.com/operator-framework/operator-sdk/pkg/k8sclient"
+	"github.com/sirupsen/logrus"
 )
 
 func printVersion() {
@@ -22,20 +22,22 @@ func printVersion() {
 func main() {
 	printVersion()
 
-	//resource := "androidsdk.aerogear.org/v1"
-	//kind := "AndroidSDK"
-	resource := "v1"
-	kind := "ConfigMap"
+	resource := "androidsdk.aerogear.org/v1"
+	kind := "AndroidSDK"
 	namespace, err := k8sutil.GetWatchNamespace()
 	if err != nil {
 		logrus.Fatalf("Failed to get watch namespace: %v", err)
 	}
 
 	client := k8sclient.GetKubeClient()
-
+	kube := configHandler.NewKube(client)
+	sdkHelper := configHandler.DefaultSdkHelper()
+	handler := configHandler.NewHandler(&kube, &sdkHelper)
 	resyncPeriod := 5
+
 	logrus.Infof("Watching %s, %s, %s, %d", resource, kind, namespace, resyncPeriod)
+
 	sdk.Watch(resource, kind, namespace, resyncPeriod)
-	sdk.Handle(stub.NewHandler(client))
+	sdk.Handle(handler)
 	sdk.Run(context.TODO())
 }

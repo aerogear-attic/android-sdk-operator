@@ -1,4 +1,7 @@
 apiVersion: "androidsdk.aerogear.org/v1"
 kind: "AndroidSDK"
 metadata:
-  name: "example"
+  name: "android-sdk-pkg-config"
+spec:
+  config_map_name: android-sdk-config
+  

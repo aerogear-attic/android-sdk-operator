@@ -121,18 +121,18 @@
                   }
                 ],
                 "resources": {
-                "limits": {
-                  "memory": "${MEMORY_LIMIT}",
-                  "cpu": "${CPU_LIMIT}"
-                },
-                "requests": {
-                  "memory": "${MEMORY_REQUESTS}",
-                  "cpu": "${CPU_REQUESTS}"
-                }
+                  "limits": {
+                    "memory": "${MEMORY_LIMIT}",
+                    "cpu": "${CPU_LIMIT}"
+                  },
+                  "requests": {
+                    "memory": "${MEMORY_REQUESTS}",
+                    "cpu": "${CPU_REQUESTS}"
+                  }
                 },
                 "volumeMounts": [
                   {
-                    "name": "${ANDROID_SDK_SERVICE_NAME}'",
+                    "name": "${ANDROID_SDK_SERVICE_NAME}",
                     "mountPath": "/opt/android-sdk-linux"
                   }
                 ],
@@ -147,7 +147,7 @@
             ],
             "volumes": [
               {
-                "name": "${ANDROID_SDK_SERVICE_NAME}-data",
+                "name": "${ANDROID_SDK_SERVICE_NAME}",
                 "persistentVolumeClaim": {
                   "claimName": "${ANDROID_SDK_SERVICE_NAME}"
                 }
@@ -155,7 +155,7 @@
               {
                 "name": "android-proxy",
                 "configMap": {
-                  "name":"android-proxy"
+                  "name": "android-proxy"
                 }
               }
             ],
@@ -196,7 +196,7 @@
         "name": "android-proxy"
       },
       "data": {
-        "https-proxy" : "${HTTPS_PROXY}",
+        "https-proxy": "${HTTPS_PROXY}",
         "http-proxy": "${HTTP_PROXY}",
         "gradle-opts": "${GRADLE_OPTS}"
       }
@@ -256,7 +256,7 @@
       "name": "ANDROID_SDK_IMAGE",
       "displayName": "Android SDK docker image reference",
       "description": "Full name of android sdk image for example ",
-      "value": "docker.io/aerogear/digger-android-sdk-image:latest"
+      "value": "docker.io/aerogear/digger-android-sdk-image:1.0.0-alpha"
     },
     {
       "name": "HTTPS_PROXY",

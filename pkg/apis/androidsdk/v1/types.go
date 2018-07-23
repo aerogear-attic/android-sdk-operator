@@ -4,6 +4,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	Done       = "Done"
+	Sync       = "Sync"
+	Install    = "Install"
+	Installing = "Installing"
+	Syncing    = "Syncing"
+)
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type AndroidSDKList struct {
@@ -22,9 +30,9 @@ type AndroidSDK struct {
 }
 
 type AndroidSDKSpec struct {
-	Data string
+	ConfigMapName string `json:"config_map_name"`
 }
 
 type AndroidSDKStatus struct {
-	// Fill me
+	Phase string `json:"phase"`
 }
